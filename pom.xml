@@ -77,13 +77,16 @@
             </plugins>
         </pluginManagement>
 
+        <finalName>${project.artifactId}</finalName>
+
         <plugins>
             <plugin>
-                <groupId>org.openjfx</groupId>
+                <groupId>com.zenjava</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.5</version>
+                <version>8.8.3</version>
                 <configuration>
-                    <mainClass>HelloFX</mainClass>
+                    <vendor>imyuyu</vendor>
+                    <mainClass>com.github.App</mainClass>
                 </configuration>
             </plugin>
         </plugins>
