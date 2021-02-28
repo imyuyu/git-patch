@@ -7,7 +7,6 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 import javafx.util.BuilderFactory;
 import javafx.util.Callback;
-import sun.reflect.misc.ReflectUtil;
 
 import java.io.IOException;
 import java.util.Map;
@@ -47,7 +46,7 @@ public class RequestMappingFactory {
             @Override
             public ControllerWrapper apply(Class<?> aClass) {
                 try {
-                    Object baseController = ReflectUtil.newInstance(aClass);
+                    Object baseController = aClass.newInstance();
                     return new ControllerWrapper(controllerClass,baseController);
                 } catch (Exception e) {
                     e.printStackTrace();
