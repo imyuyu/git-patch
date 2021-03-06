@@ -5,6 +5,7 @@ import cn.hutool.core.collection.ListUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.core.util.XmlUtil;
 import cn.hutool.core.util.ZipUtil;
 import com.github.git.common.Environment;
 import com.github.git.common.SystemProperties;
@@ -36,6 +37,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.DirectoryChooser;
 import javafx.util.Callback;
+import org.w3c.dom.NodeList;
 
 import java.io.*;
 import java.net.URL;
@@ -82,6 +84,7 @@ public class PatchController extends BaseController implements Initializable {
     public StackPane maskPane;
     public TextField branchInput;
     public CheckBox finishThenOpenFolder;
+    public CheckBox fullPackage;
 
     private DirectoryChooser directoryChooser = new DirectoryChooser();
 
@@ -232,6 +235,10 @@ public class PatchController extends BaseController implements Initializable {
         progressBar.setProgress(0);
         progressInfo.appendText("开始获取变更详情...\n");
 
+        // 是否全量打包
+        boolean isFullPackage = fullPackage.isSelected();
+        Set<String> copyJar = new HashSet<>();
+
         ThreadHelper.submit(new Runnable() {
             @Override
             public void run() {
@@ -327,6 +334,17 @@ public class PatchController extends BaseController implements Initializable {
                                     // 模块
                                     String moduleName = filePath.substring(0,idx4ModuleName);
 
+                                    // 当前模块打包方式
+                                    String packaging = "jar";
+                                    // 解析一下pom
+                                    File pomFile = new File(workspace+"/"+moduleName+"/pom.xml");
+                                    if(pomFile.exists()){
+                                        NodeList packagingNodes = XmlUtil.readXML(pomFile).getElementsByTagName("packaging");
+                                        if(packagingNodes.getLength() > 0){
+                                            packaging = packagingNodes.item(packagingNodes.getLength() - 1).getTextContent();
+                                        }
+                                    }
+
                                     int extIndex = fileName.lastIndexOf(".");
                                     String fileShortName = fileName.substring(0, extIndex);
                                     String fileExtName = fileName.substring(extIndex + 1);
@@ -336,31 +354,63 @@ public class PatchController extends BaseController implements Initializable {
                                     File sourceFile;
                                     File targetFile;
 
-                                    if(filePath.startsWith(sourcePath)){
-                                        // 需要编译
-                                        if(filePath.endsWith(".java")){
-                                            String targetTemp = filePath.replace(sourcePath,"").replace(".java", ".class");
+                                    if(isFullPackage && Objects.equals(packaging, "jar")){
 
-                                            // 需要编译的文件，获取target中的文件
-                                            String compilePath = String.join("/",workspace,moduleName,"target","classes");
-
-                                            String compileFile = filePath.replace(sourcePath, compilePath).replace(".java", ".class");
-                                            // class路径
-                                            sourceFile = new File(compileFile);
-                                            // 补丁包内class路径
-                                            targetFile = new File(classesDir,targetTemp);
-                                        }else{
-                                            // 直接复制
-                                            String targetTemp = filePath.replace(sourcePath,"");
-                                            sourceFile = new File(workspaceFile,filePath);
-                                            targetFile = new File(classesDir,targetTemp);
+                                        boolean contains = copyJar.contains(moduleName);
+                                        if(contains){
+                                            return;
                                         }
-                                    }else{
-                                        // 不需要
-                                        String targetTemp = filePath.replace(moduleName+"/"+webapp_key,"");
-                                        // 其他文件对应放,直接复制
-                                        sourceFile = new File(workspaceFile,filePath);
-                                        targetFile = new File(patchDir,targetTemp);
+
+                                        String jarPath = String.join("/", workspace, moduleName, "target");
+
+                                        File jarFolder = new File(jarPath);
+                                        File[] jars = jarFolder.listFiles(new FileFilter() {
+                                            @Override
+                                            public boolean accept(File pathname) {
+                                                String fileName = pathname.getName();
+                                                return fileName.endsWith(".jar")
+                                                        && !fileName.endsWith("SNAPSHOT.jar")
+                                                        && !fileName.endsWith("sources.jar");
+                                            }
+                                        });
+
+                                        if(jars == null || jars.length == 0){
+                                            return;
+                                        }
+
+                                        copyJar.add(moduleName);
+
+                                        sourceFile = jars[0];
+
+                                        targetFile = new File(patchDir+"/WEB-INF/lib/"+sourceFile.getName());
+                                    }else {
+                                        // 需要编译的代码放到classes,不需要编译的直接复制
+                                        if (filePath.startsWith(sourcePath)) {
+                                            // 需要编译
+                                            if (filePath.endsWith(".java")) {
+                                                String targetTemp = filePath.replace(sourcePath, "").replace(".java", ".class");
+
+                                                // 需要编译的文件，获取target中的文件
+                                                String compilePath = String.join("/", workspace, moduleName, "target", "classes");
+
+                                                String compileFile = filePath.replace(sourcePath, compilePath).replace(".java", ".class");
+                                                // class路径
+                                                sourceFile = new File(compileFile);
+                                                // 补丁包内class路径
+                                                targetFile = new File(classesDir, targetTemp);
+                                            } else {
+                                                // 直接复制
+                                                String targetTemp = filePath.replace(sourcePath, "");
+                                                sourceFile = new File(workspaceFile, filePath);
+                                                targetFile = new File(classesDir, targetTemp);
+                                            }
+                                        } else {
+                                            // 不需要
+                                            String targetTemp = filePath.replace(moduleName + "/" + webapp_key, "");
+                                            // 其他文件对应放,直接复制
+                                            sourceFile = new File(workspaceFile, filePath);
+                                            targetFile = new File(patchDir, targetTemp);
+                                        }
                                     }
 
                                     try {

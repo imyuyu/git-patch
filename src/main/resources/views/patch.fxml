@@ -24,7 +24,7 @@
             <Button layoutX="452.0" layoutY="101.0" mnemonicParsing="false" onMouseClicked="#chooseBranch" text="选  择" visible="false" />
             <Button layoutX="452.0" layoutY="139.0" mnemonicParsing="false" onMouseClicked="#chooseStartCommit" text="选  择" />
             <Button layoutX="452.0" layoutY="181.0" mnemonicParsing="false" onMouseClicked="#chooseEndCommit" text="选  择" />
-            <CheckBox layoutX="306.0" layoutY="295.0" mnemonicParsing="false" text="全量打包">
+            <CheckBox fx:id="fullPackage" layoutX="306.0" layoutY="295.0" mnemonicParsing="false" text="全量打包">
                <tooltip>
                   <Tooltip contentDisplay="TOP" text="勾选后会直接获取jar包，而不是class文件" />
                </tooltip></CheckBox>
