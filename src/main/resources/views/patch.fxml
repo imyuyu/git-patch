@@ -39,7 +39,7 @@
                 <Menu mnemonicParsing="false" text="帮  助">
                   <items>
                     <MenuItem mnemonicParsing="false" onAction="#showLogFolder" text="显示日志文件夹" />
-                    <MenuItem mnemonicParsing="false" text="关  于" />
+                    <MenuItem mnemonicParsing="false" onAction="#about" text="关  于" />
                   </items>
                 </Menu>
               </menus>

@@ -35,6 +35,7 @@ import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
+import javafx.scene.text.Font;
 import javafx.stage.DirectoryChooser;
 import javafx.util.Callback;
 import org.w3c.dom.NodeList;
@@ -237,7 +238,6 @@ public class PatchController extends BaseController implements Initializable {
 
         // 是否全量打包
         boolean isFullPackage = fullPackage.isSelected();
-        Set<String> copyJar = new HashSet<>();
 
         ThreadHelper.submit(new Runnable() {
             @Override
@@ -356,14 +356,10 @@ public class PatchController extends BaseController implements Initializable {
 
                                     if(isFullPackage && Objects.equals(packaging, "jar")){
 
-                                        boolean contains = copyJar.contains(moduleName);
-                                        if(contains){
-                                            return;
-                                        }
-
                                         String jarPath = String.join("/", workspace, moduleName, "target");
 
                                         File jarFolder = new File(jarPath);
+                                        // todo 需要改一下模式，比如从父pom中获取，不过太麻烦了。
                                         File[] jars = jarFolder.listFiles(new FileFilter() {
                                             @Override
                                             public boolean accept(File pathname) {
@@ -378,11 +374,13 @@ public class PatchController extends BaseController implements Initializable {
                                             return;
                                         }
 
-                                        copyJar.add(moduleName);
-
                                         sourceFile = jars[0];
 
                                         targetFile = new File(patchDir+"/WEB-INF/lib/"+sourceFile.getName());
+
+                                        if(targetFile.exists()){
+                                            return;
+                                        }
                                     }else {
                                         // 需要编译的代码放到classes,不需要编译的直接复制
                                         if (filePath.startsWith(sourcePath)) {
@@ -478,11 +476,15 @@ public class PatchController extends BaseController implements Initializable {
                                             returnMain.setDisable(false);
                                             progressBar.setProgress(1);
 
+                                            // 清空文件夹
+                                            FileUtil.del(patchDir);
+
                                             MessageDialog.alert("生成成功！");
 
                                             if(finishThenOpenFolder.isSelected()){
                                                 WindowUtil.openFolder(parentFile.getPath());
                                             }
+
                                         }
                                     });
                                 }
@@ -766,5 +768,35 @@ public class PatchController extends BaseController implements Initializable {
 
     public void showLogFolder(ActionEvent actionEvent) {
         WindowUtil.openFolder(Environment.getLogFolder().getPath());
+    }
+
+    public void about(ActionEvent actionEvent) {
+        Dialog<Commit> dialog = new Dialog<>();
+        dialog.setTitle("关于");
+        dialog.setHeaderText("");
+
+        GridPane gridPane = new GridPane();
+        Label label = new Label("git补丁包生成工具");
+        label.setFont(new Font("宋体",18));
+        gridPane.add(label,0,0);
+
+        gridPane.add(new Label(),0,1);
+
+        Label label1 = new Label("作者：imyuyu");
+        Label label2 = new Label("联系邮箱：2075904@qq.com");
+        gridPane.add(label1,0,2);
+        gridPane.add(label2,0,3);
+
+        Label label3 = new Label("当前版本：V1.0");
+        gridPane.add(label3,0,4);
+
+        dialog.getDialogPane().setContent(gridPane);
+
+        dialog.getDialogPane().setPrefWidth(300);
+        dialog.getDialogPane().setPrefHeight(200);
+
+        dialog.getDialogPane().getButtonTypes().add(new ButtonType("关闭", ButtonBar.ButtonData.CANCEL_CLOSE));
+
+        dialog.show();
     }
 }
