@@ -11,7 +11,7 @@ import java.util.logging.FileHandler;
 public class JulFileHandler extends FileHandler {
 
     public JulFileHandler() throws IOException, SecurityException {
-        this(Environment.getConfigHome().getPath()+"/logs/java%u.log",false);
+        this(Environment.getLogFolder().getPath()+"/java%u.log",false);
     }
 
     public JulFileHandler(String pattern) throws IOException, SecurityException {

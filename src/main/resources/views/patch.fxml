@@ -5,33 +5,66 @@
 
 <AnchorPane fx:id="pane" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.github.git.patch.PatchController">
    <children>
-      <AnchorPane fx:id="mainPane" prefHeight="400.0" prefWidth="600.0">
+      <AnchorPane fx:id="mainPane" prefHeight="400.0" prefWidth="600.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
          <children>
-            <Label layoutX="101.0" layoutY="97.0" text="Git 仓库地址" />
-            <Label layoutX="86.0" layoutY="228.0" text="补丁包生成路径" />
-            <Button layoutX="210.0" layoutY="339.0" mnemonicParsing="false" onMouseClicked="#createPatch" text="生  成" />
-            <Button layoutX="292.0" layoutY="339.0" mnemonicParsing="false" onMouseClicked="#exit" text="退  出" />
-            <TextField fx:id="repoPathInput" layoutX="189.0" layoutY="93.0" prefHeight="23.0" prefWidth="254.0" />
+            <Label layoutX="101.0" layoutY="68.0" text="Git 仓库地址" />
+            <Label layoutX="84.0" layoutY="228.0" text="补丁包生成路径" />
+            <Button layoutX="276.0" layoutY="339.0" mnemonicParsing="false" onMouseClicked="#createPatch" text="生  成" />
+            <TextField fx:id="repoPathInput" layoutX="189.0" layoutY="64.0" prefHeight="23.0" prefWidth="254.0" />
             <TextField fx:id="patchDirInput" layoutX="189.0" layoutY="224.0" prefHeight="23.0" prefWidth="254.0" />
-            <Button layoutX="452.0" layoutY="93.0" mnemonicParsing="false" onMouseClicked="#chooseWorkspace" text="选  择" />
+            <Button layoutX="452.0" layoutY="64.0" mnemonicParsing="false" onMouseClicked="#chooseWorkspace" text="选  择" />
             <Button layoutX="452.0" layoutY="224.0" mnemonicParsing="false" onMouseClicked="#choosePatchDir" text="选  择" />
-            <Label layoutX="246.0" layoutY="39.0" prefWidth="197.0" text="补丁包生成工具 V1.0" />
-            <Label layoutX="122.0" layoutY="143.0" text="起始提交" />
-            <Label layoutX="122.0" layoutY="185.0" text="结束提交" />
+            <Label layoutX="120.0" layoutY="143.0" text="起始提交" />
+            <Label layoutX="120.0" layoutY="185.0" text="结束提交" />
             <TextField fx:id="commitStart" layoutX="189.0" layoutY="139.0" prefHeight="23.0" prefWidth="254.0" />
             <TextField fx:id="commitEnd" layoutX="189.0" layoutY="181.0" prefHeight="23.0" prefWidth="254.0" />
-            <Button layoutX="373.0" layoutY="339.0" mnemonicParsing="false" onMouseClicked="#setting" text="设  置" />
-            <CheckBox fx:id="saveMe" layoutX="189.0" layoutY="266.0" mnemonicParsing="false" selected="true" text="保存我的配置" />
+            <CheckBox fx:id="saveMe" layoutX="196.0" layoutY="295.0" mnemonicParsing="false" selected="true" text="保存我的配置" />
+            <Label layoutX="144.0" layoutY="105.0" text="分支" />
+            <TextField fx:id="branchInput" editable="false" layoutX="189.0" layoutY="101.0" prefHeight="23.0" prefWidth="254.0" />
+            <Button layoutX="452.0" layoutY="101.0" mnemonicParsing="false" onMouseClicked="#chooseBranch" text="选  择" visible="false" />
+            <Button layoutX="452.0" layoutY="139.0" mnemonicParsing="false" onMouseClicked="#chooseStartCommit" text="选  择" />
+            <Button layoutX="452.0" layoutY="181.0" mnemonicParsing="false" onMouseClicked="#chooseEndCommit" text="选  择" />
+            <CheckBox layoutX="306.0" layoutY="295.0" mnemonicParsing="false" text="全量打包">
+               <tooltip>
+                  <Tooltip contentDisplay="TOP" text="勾选后会直接获取jar包，而不是class文件" />
+               </tooltip></CheckBox>
+            <MenuBar prefHeight="25.0" prefWidth="600.0">
+              <menus>
+                <Menu mnemonicParsing="false" text="文  件">
+                  <items>
+                    <MenuItem mnemonicParsing="false" onAction="#setting" text="设  置" />
+                    <MenuItem mnemonicParsing="false" onAction="#exit" text="退  出" />
+                  </items>
+                </Menu>
+                <Menu mnemonicParsing="false" text="帮  助">
+                  <items>
+                    <MenuItem mnemonicParsing="false" onAction="#showLogFolder" text="显示日志文件夹" />
+                    <MenuItem mnemonicParsing="false" text="关  于" />
+                  </items>
+                </Menu>
+              </menus>
+            </MenuBar>
          </children>
       </AnchorPane>
-      <AnchorPane fx:id="processingPane" prefHeight="400.0" prefWidth="600.0" visible="false">
+      <AnchorPane fx:id="processingPane" prefHeight="400.0" prefWidth="600.0" visible="false" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
          <children>
             <Label fx:id="buildInfo" layoutX="30.0" layoutY="43.0" maxWidth="540.0" text="构建补丁包..." />
             <ProgressBar fx:id="progressBar" layoutX="30.0" layoutY="74.0" prefHeight="18.0" prefWidth="541.0" progress="0.0" />
             <TextArea fx:id="progressInfo" editable="false" layoutX="30.0" layoutY="108.0" prefHeight="243.0" prefWidth="541.0" />
             <Button fx:id="finishPackage" disable="true" layoutX="523.0" layoutY="363.0" mnemonicParsing="false" onMouseClicked="#finishPackage" text="完  成" />
             <Button fx:id="returnMain" disable="true" layoutX="460.0" layoutY="363.0" mnemonicParsing="false" onMouseClicked="#returnMain" text="返  回" />
+            <CheckBox fx:id="finishThenOpenFolder" layoutX="30.0" layoutY="367.0" mnemonicParsing="false" selected="true" text="完成后打开文件夹" />
          </children>
       </AnchorPane>
+
+      <StackPane fx:id="maskPane" prefHeight="400.0" prefWidth="600.0" style="-fx-background-color: rgba(160,160,160,0.4);" visible="false" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+         <children>
+            <Pane>
+               <children>
+                  <ProgressIndicator layoutX="274.0" layoutY="147.0" />
+               </children>
+            </Pane>
+         </children>
+      </StackPane>
    </children>
 </AnchorPane>

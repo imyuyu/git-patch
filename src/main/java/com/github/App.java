@@ -5,6 +5,7 @@ import com.github.git.common.Environment;
 import com.github.git.common.ui.MessageDialog;
 import com.github.git.common.ui.RequestMappingFactory;
 import com.github.git.patch.PatchController;
+import com.github.git.util.HostServicesHolder;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.EventHandler;
@@ -34,10 +35,13 @@ public class App extends Application
 
         // 初始化日志文件
         // LogManager.getLogManager().readConfiguration(App.class.getResourceAsStream("/logging.properties"));
+
     }
 
     @Override
     public void start(Stage primaryStage) throws Exception{
+
+        HostServicesHolder.setHostServices(getHostServices());
 
         RequestMappingFactory.getInstance().setStage(primaryStage);
         Scene scene = RequestMappingFactory.getInstance().getScene(PatchController.class);

@@ -11,7 +11,7 @@ import java.util.Properties;
 public class SystemProperties {
 
     private final Properties properties = new Properties();
-    private final File userPrefs = new File(Environment.getConfigHome(),"git-hotfix.prefs");
+    private final File userPrefs = new File(Environment.getConfigFolder(),"git-hotfix.prefs");
     private boolean inited = false;
     private final byte[] lock = new byte[0];
     private static final SystemProperties systemProperties = new SystemProperties();

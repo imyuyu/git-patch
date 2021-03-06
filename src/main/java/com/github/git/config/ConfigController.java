@@ -113,9 +113,13 @@ public class ConfigController extends BaseController implements Initializable {
     public void chooseGitExecutable(MouseEvent mouseEvent){
         String text = gitExecutableInput.getText().trim();
         if(StrUtil.isNotBlank(text)){
-            fileChooser.setInitialDirectory(new File(text));
+            File file = new File(text);
+            if(file.exists()){
+                fileChooser.setInitialDirectory(file.getParentFile());
+                fileChooser.setInitialFileName(file.getName());
+            }
         }
-        File file = fileChooser.showOpenDialog(pane.getScene().getWindow());
+         File file = fileChooser.showOpenDialog(pane.getScene().getWindow());
         if (file == null) {
             return;
         }

@@ -21,8 +21,16 @@ public class Environment {
         return userHome;
     }
 
-    public static File getConfigHome(){
+    public static File getConfigFolder(){
         return configHome;
+    }
+
+    public static File getLogFolder(){
+        return new File(configHome,"logs");
+    }
+
+    public static String getGitExecutable(){
+        return SystemProperties.getInstance().getProperty(SystemProperties.GIT_EXECUTABLE_KEY);
     }
 
 }

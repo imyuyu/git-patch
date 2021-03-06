@@ -1,5 +1,7 @@
 package com.github.git.patch;
 
+import cn.hutool.core.collection.CollectionUtil;
+import cn.hutool.core.collection.ListUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
@@ -11,25 +13,37 @@ import com.github.git.common.ui.BaseController;
 import com.github.git.common.ui.MessageDialog;
 import com.github.git.common.ui.RequestMappingFactory;
 import com.github.git.config.ConfigController;
+import com.github.git.domain.Commit;
+import com.github.git.domain.Repository;
+import com.github.git.util.GitUtil;
+import com.github.git.util.HostServicesHolder;
+import com.github.git.util.WindowUtil;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
+import javafx.event.EventTarget;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
 import javafx.stage.DirectoryChooser;
-import javafx.stage.Window;
+import javafx.util.Callback;
 
 import java.io.*;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -65,14 +79,19 @@ public class PatchController extends BaseController implements Initializable {
     public Button finishPackage;
     public Button returnMain;
     public Label buildInfo;
+    public StackPane maskPane;
+    public TextField branchInput;
+    public CheckBox finishThenOpenFolder;
 
     private DirectoryChooser directoryChooser = new DirectoryChooser();
+
+    private Repository repository;
 
     /**
      * 设置
      * @param mouseEvent
      */
-    public void setting(MouseEvent mouseEvent) {
+    public void setting(ActionEvent mouseEvent) {
         RequestMappingFactory.getInstance().showScene(ConfigController.class);
     }
 
@@ -102,9 +121,27 @@ public class PatchController extends BaseController implements Initializable {
 
         repoPathInput.setText(repo);
         patchDirInput.setText(pathDir);
+
+        initRepository();
     }
 
-    public void exit(MouseEvent mouseEvent) {
+    public void initRepository(){
+        String repo = repoPathInput.getText();
+
+        if(StrUtil.isNotBlank(repo)){
+            repository = GitUtil.initRepository(repo);
+
+            if(repository != null){
+                List<Commit> commits = repository.getCommits();
+                if(CollectionUtil.isNotEmpty(commits)){
+                    commitEnd.setText(commits.get(0).getAbbreviatedCommitHash());
+                    branchInput.setText(repository.getDefaultBranch());
+                }
+            }
+        }
+    }
+
+    public void exit(ActionEvent mouseEvent) {
         MessageDialog.confirm("是否确认退出？", new Consumer<ButtonType>() {
             @Override
             public void accept(ButtonType buttonType) {
@@ -205,7 +242,10 @@ public class PatchController extends BaseController implements Initializable {
                     Platform.runLater(new Runnable() {
                         @Override
                         public void run() {
+                            progressBar.setProgress(0);
                             MessageDialog.alert("获取git信息失败");
+                            finishPackage.setDisable(false);
+                            returnMain.setDisable(false);
                         }
                     });
                     logger.log(Level.SEVERE,"获取git信息失败！",e);
@@ -241,7 +281,7 @@ public class PatchController extends BaseController implements Initializable {
 
                     String patchFileName = String.join("_",commitStartShort,commitEndShort,"patch");
 
-                    File patchDir = new File(Environment.getConfigHome(),String.join(File.separator,"temp",patchFileName));
+                    File patchDir = new File(Environment.getConfigFolder(),String.join(File.separator,"temp",patchFileName));
 
                     if(!patchDir.exists()){
                         patchDir.mkdirs();
@@ -389,6 +429,10 @@ public class PatchController extends BaseController implements Initializable {
                                             progressBar.setProgress(1);
 
                                             MessageDialog.alert("生成成功！");
+
+                                            if(finishThenOpenFolder.isSelected()){
+                                                WindowUtil.openFolder(parentFile.getPath());
+                                            }
                                         }
                                     });
                                 }
@@ -404,7 +448,15 @@ public class PatchController extends BaseController implements Initializable {
                     Platform.runLater(new Runnable() {
                         @Override
                         public void run() {
-                            MessageDialog.error("生成失败!");
+                            finishPackage.setDisable(false);
+                            returnMain.setDisable(false);
+                            progressBar.setProgress(1);
+                            progressInfo.appendText("生成失败，失败原因：\n"+s);
+                            if(s.contains("unknown revision or path not in the working tree.")){
+                                MessageDialog.alert("生成失败,提交hash不存在！");
+                            }else {
+                                MessageDialog.alert("生成失败");
+                            }
                         }
                     });
                 }
@@ -433,6 +485,8 @@ public class PatchController extends BaseController implements Initializable {
         File file = directoryChooser.showDialog(pane.getScene().getWindow());
         if (file != null) {
             repoPathInput.setText(file.getPath());
+            // 切换仓库后需要重新加载一次
+            initRepository();
         }
     }
 
@@ -472,5 +526,195 @@ public class PatchController extends BaseController implements Initializable {
             }
         }
         return true;
+    }
+
+    public void chooseBranch(MouseEvent mouseEvent) {
+
+        String gitExecutable = SystemProperties.getInstance().getProperty(SystemProperties.GIT_EXECUTABLE_KEY);
+        if(StrUtil.isBlank(gitExecutable)){
+            MessageDialog.alert("请先配置好Git可执行文件路径！");
+            return;
+        }
+
+        String workspace = repoPathInput.getText().trim();
+        if(StrUtil.isBlank(workspace)){
+            MessageDialog.alert("请填写正确的Git本地仓库！");
+            repoPathInput.requestFocus();
+            return;
+        }
+
+        File workspaceFile = new File(workspace);
+        if(!workspaceFile.exists()){
+            repoPathInput.requestFocus();
+            MessageDialog.alert("Git本地仓库不存在！");
+            return;
+        }
+
+        File gitFile = new File(workspaceFile,".git");
+        if(!gitFile.exists()){
+            repoPathInput.requestFocus();
+            MessageDialog.alert("这不是正确的Git本地仓库！");
+            return;
+        }
+
+        maskPane.setVisible(true);
+
+        // 加载所有分支
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        processBuilder.command(
+                gitExecutable
+                ,"branch"
+                ,"-a"
+        );
+        processBuilder.directory(new File(workspace));
+        Map<String, String> environment = processBuilder.environment();
+
+        List<String> names = new ArrayList<>();
+
+        try {
+            Process process = processBuilder.start();
+
+            logger.info("开始获取分支详情...");
+
+            ThreadHelper.submit(new Runnable() {
+                @Override
+                public void run() {
+                    InputStream inputStream = process.getInputStream();
+                    IoUtil.readUtf8Lines(inputStream,names);
+                }
+            });
+
+            ThreadHelper.submit(new Runnable() {
+                @Override
+                public void run() {
+                    int i = 0;
+                    try {
+                        i = process.waitFor();
+                    }catch (Exception e){
+
+                    }
+
+                    maskPane.setVisible(false);
+
+                    if(i != 0){
+                        return;
+                    }
+
+                    Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+
+                            List<String> dealNames = names.stream().map(new Function<String, String>() {
+                                @Override
+                                public String apply(String s) {
+                                    String name = s.trim();
+                                    if(name.startsWith("*")){
+                                        name = name.replace("*","").trim();
+                                    }else if(name.contains("->")){
+
+                                        String[] nameInfo = name.split("->");
+                                        name = nameInfo[1].trim();
+                                    }
+                                    return name;
+                                }
+                            }).collect(Collectors.toList());
+
+                            String defaultBranch = dealNames.stream().filter(s -> s.startsWith("*")).findFirst().orElse(dealNames.get(0));
+
+                            ChoiceDialog<String> dialog = new ChoiceDialog<>(defaultBranch,dealNames);
+                            dialog.setTitle("选择分支");
+                            dialog.setHeaderText("");
+                            dialog.setContentText("分支:");
+
+                            Optional<String> result = dialog.showAndWait();
+                            result.ifPresent(s -> branchInput.setText(s));
+                        }
+                    });
+
+                }
+            });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void chooseStartCommit(MouseEvent mouseEvent) {
+        chooseCommit(commitStart.getText().trim(),commit -> commitStart.setText(commit.getAbbreviatedCommitHash()));
+    }
+
+    public void chooseEndCommit(MouseEvent mouseEvent) {
+        chooseCommit(commitEnd.getText().trim(),commit -> commitEnd.setText(commit.getAbbreviatedCommitHash()));
+    }
+
+    public void chooseCommit(String initData,Consumer<Commit> consumer){
+        Dialog<Commit> dialog = new Dialog<>();
+        dialog.setTitle("选择提交历史");
+        dialog.setHeaderText("");
+
+        ObservableList<Commit> data = FXCollections.observableArrayList();
+        data.addAll(repository.getCommits());
+
+        GridPane gridPane = new GridPane();
+
+        TableView<Commit> tableView = new TableView<>(data);
+        tableView.setPrefWidth(800);
+        tableView.setPrefHeight(600);
+        tableView.getColumns().addAll(CommitTableHelper.getTableColumns());
+
+        if(StrUtil.isNotBlank(initData)){
+            data.parallelStream()
+                    .filter(commit -> Objects.equals(commit.getAbbreviatedCommitHash(), initData))
+                    .findFirst()
+                    .ifPresent(commit -> {
+                        int row = data.indexOf(commit);
+                        tableView.getSelectionModel().select(row);
+                        tableView.getSelectionModel().focus(row);
+                        tableView.scrollTo(row);
+                    });
+        }
+
+        tableView.setRowFactory( tv -> {
+            TableRow<Commit> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2 && (!row.isEmpty()) ) {
+                    Commit rowData = row.getItem();
+                    dialog.setResult(rowData);
+                    dialog.close();
+                }
+            });
+            return row ;
+        });
+
+        Platform.runLater(tableView::requestFocus);
+
+        gridPane.add(tableView,0,0);
+        /*Pagination pagination = new Pagination(10,0);
+        gridPane.add(pagination,0,1);*/
+
+        dialog.getDialogPane().setContent(gridPane);
+
+        dialog.getDialogPane().setPrefWidth(800);
+        dialog.getDialogPane().setPrefHeight(600);
+
+        ButtonType okBtn = new ButtonType("确定", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(okBtn, ButtonType.CANCEL);
+
+        dialog.setResultConverter(new Callback<ButtonType, Commit>() {
+            @Override
+            public Commit call(ButtonType param) {
+                if (param.getButtonData() == ButtonBar.ButtonData.OK_DONE) {
+                    return tableView.getSelectionModel().getSelectedItem();
+                }
+                return null;
+            }
+        });
+
+        Optional<Commit> o = dialog.showAndWait();
+
+        o.ifPresent(consumer);
+    }
+
+    public void showLogFolder(ActionEvent actionEvent) {
+        WindowUtil.openFolder(Environment.getLogFolder().getPath());
     }
 }
