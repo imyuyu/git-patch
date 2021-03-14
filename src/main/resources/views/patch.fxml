@@ -28,7 +28,7 @@
                <tooltip>
                   <Tooltip contentDisplay="TOP" text="勾选后会直接获取jar包，而不是class文件" />
                </tooltip></CheckBox>
-            <MenuBar prefHeight="25.0" prefWidth="600.0">
+            <MenuBar prefHeight="25.0" prefWidth="600.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
               <menus>
                 <Menu mnemonicParsing="false" text="文  件">
                   <items>

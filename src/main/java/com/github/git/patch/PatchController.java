@@ -1,7 +1,6 @@
 package com.github.git.patch;
 
 import cn.hutool.core.collection.CollectionUtil;
-import cn.hutool.core.collection.ListUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
@@ -17,14 +16,11 @@ import com.github.git.config.ConfigController;
 import com.github.git.domain.Commit;
 import com.github.git.domain.Repository;
 import com.github.git.util.GitUtil;
-import com.github.git.util.HostServicesHolder;
 import com.github.git.util.WindowUtil;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
-import javafx.event.EventTarget;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Scene;
@@ -42,12 +38,10 @@ import org.w3c.dom.NodeList;
 
 import java.io.*;
 import java.net.URL;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -60,8 +54,9 @@ public class PatchController extends BaseController implements Initializable {
 
     private final Set<String> exclude = new HashSet<>();
 
-    private final String webapp_key = "src/main/webapp";
-    private final String source_key = "src/main/java";
+    private final String webapp_folders = "src/main/webapp";
+    private final String source_folders = "src/main/java";
+    private final String resource_folders = "src/main/resources";
 
     @FXML
     public Pane pane;
@@ -349,7 +344,8 @@ public class PatchController extends BaseController implements Initializable {
                                     String fileShortName = fileName.substring(0, extIndex);
                                     String fileExtName = fileName.substring(extIndex + 1);
 
-                                    String sourcePath = moduleName + "/" + source_key;
+                                    String sourcePath = moduleName + "/" + source_folders;
+                                    String resourcePath = moduleName + "/" + resource_folders;
 
                                     File sourceFile;
                                     File targetFile;
@@ -402,9 +398,16 @@ public class PatchController extends BaseController implements Initializable {
                                                 sourceFile = new File(workspaceFile, filePath);
                                                 targetFile = new File(classesDir, targetTemp);
                                             }
+                                        } else if (filePath.startsWith(resourcePath)) {
+
+                                            // resource 目录下的，直接放到class目录
+                                            String targetTemp = filePath.replace(resourcePath, "");
+                                            sourceFile = new File(workspaceFile, filePath);
+                                            targetFile = new File(classesDir, targetTemp);
+
                                         } else {
                                             // 不需要
-                                            String targetTemp = filePath.replace(moduleName + "/" + webapp_key, "");
+                                            String targetTemp = filePath.replace(moduleName + "/" + webapp_folders, "");
                                             // 其他文件对应放,直接复制
                                             sourceFile = new File(workspaceFile, filePath);
                                             targetFile = new File(patchDir, targetTemp);

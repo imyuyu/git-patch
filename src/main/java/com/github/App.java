@@ -18,6 +18,7 @@ import javafx.stage.StageStyle;
 import javafx.stage.WindowEvent;
 
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.logging.FileHandler;
 import java.util.logging.Handler;
@@ -28,14 +29,12 @@ public class App extends Application
 {
 
     static{
-        String path = App.class.getClassLoader()
-                .getResource("logging.properties")
-                .getFile();
-        System.setProperty("java.util.logging.config.file", path);
-
         // 初始化日志文件
-        // LogManager.getLogManager().readConfiguration(App.class.getResourceAsStream("/logging.properties"));
-
+        try {
+            LogManager.getLogManager().readConfiguration(App.class.getResourceAsStream("/logging.properties"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
