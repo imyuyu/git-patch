@@ -1,29 +1,21 @@
 package com.github;
 
 
-import com.github.git.common.Environment;
-import com.github.git.common.ui.MessageDialog;
-import com.github.git.common.ui.RequestMappingFactory;
+import com.github.git.util.MessageDialog;
+import com.github.git.util.ui.RequestMappingFactory;
 import com.github.git.patch.PatchController;
 import com.github.git.util.HostServicesHolder;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.EventHandler;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.ButtonType;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import javafx.stage.WindowEvent;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.function.Consumer;
-import java.util.logging.FileHandler;
-import java.util.logging.Handler;
 import java.util.logging.LogManager;
-import java.util.logging.Logger;
 
 public class App extends Application
 {

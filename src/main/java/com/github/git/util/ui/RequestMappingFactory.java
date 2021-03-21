@@ -1,7 +1,5 @@
-package com.github.git.common.ui;
+package com.github.git.util.ui;
 
-import com.github.git.config.ConfigController;
-import com.github.git.patch.PatchController;
 import javafx.fxml.JavaFXBuilderFactory;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
@@ -42,17 +40,14 @@ public class RequestMappingFactory {
     }
 
     private ControllerWrapper getControllerWrapper(Class<?> controllerClass) {
-        return baseControllerMap.computeIfAbsent(controllerClass, new Function<Class<?>, ControllerWrapper>() {
-            @Override
-            public ControllerWrapper apply(Class<?> aClass) {
-                try {
-                    Object baseController = aClass.newInstance();
-                    return new ControllerWrapper(controllerClass,baseController);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                return ControllerWrapper.EMPTY;
+        return baseControllerMap.computeIfAbsent(controllerClass, aClass -> {
+            try {
+                Object baseController = aClass.newInstance();
+                return new ControllerWrapper(controllerClass,baseController);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+            return ControllerWrapper.EMPTY;
         });
     }
 
@@ -62,19 +57,16 @@ public class RequestMappingFactory {
     }
 
     public Scene getScene(Class<?> controllerClass) {
-        return classSceneMap.computeIfAbsent(controllerClass, new Function<Class<?>, Scene>() {
-            @Override
-            public Scene apply(Class<?> aClass) {
-                Object controller = getController(aClass);
-                if(controller instanceof BaseController){
-                    try {
-                        return ((BaseController) controller).getScene();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+        return classSceneMap.computeIfAbsent(controllerClass, aClass -> {
+            Object controller = getController(aClass);
+            if(controller instanceof BaseController){
+                try {
+                    return ((BaseController) controller).getScene();
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
-                return null;
             }
+            return null;
         });
     }
 
@@ -109,8 +101,8 @@ public class RequestMappingFactory {
     static class ControllerWrapper{
         public static final ControllerWrapper EMPTY = new ControllerWrapper(null, null);
 
-        private Class<?> clazz;
-        private Object controller;
+        private final Class<?> clazz;
+        private final Object controller;
         private boolean init = false;
 
         public ControllerWrapper(Class<?> clazz, Object controller) {

@@ -1,9 +1,11 @@
 package com.github.git.common;
 
-import com.github.git.common.ui.MessageDialog;
+import com.github.git.util.MessageDialog;
 
 import java.io.*;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * @author imyuyu
@@ -18,6 +20,13 @@ public class SystemProperties {
 
     public static final String MAVEN_HOME_KEY = "maven_home";
     public static final String GIT_EXECUTABLE_KEY = "git_executable";
+
+    private final Set<String> excluded = new HashSet<>();
+
+    private final String webapp_folders = "src/main/webapp";
+    private final String source_folders = "src/main/java";
+    private final String resource_folders = "src/main/resources";
+
 
 
     private SystemProperties() {
@@ -54,6 +63,15 @@ public class SystemProperties {
                 System.exit(0);
             }
 
+            excluded.add("pom.xml");
+            excluded.add(".gitignore");
+            excluded.add(".gitlab-ci.yml");
+            excluded.add("CHANGELOG.md");
+            excluded.add("CONTRIBUTING.md");
+            excluded.add("README.md");
+            excluded.add(".mvn");
+            excluded.add(".idea");
+
             inited = true;
         }
     }
@@ -73,5 +91,21 @@ public class SystemProperties {
 
     public void delProperty(String name) {
         properties.remove(name);
+    }
+
+    public String getSourceFolder(){
+        return source_folders;
+    }
+
+    public String getResourceFolder(){
+        return resource_folders;
+    }
+
+    public String getWebappFolder(){
+        return webapp_folders;
+    }
+
+    public Set<String> getExcludedFile(){
+        return excluded;
     }
 }

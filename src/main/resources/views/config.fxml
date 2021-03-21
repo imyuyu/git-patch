@@ -5,13 +5,25 @@
 
 <AnchorPane fx:id="pane" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.github.git.config.ConfigController">
    <children>
-      <Button fx:id="saveBtn" layoutX="218.0" layoutY="336.0" mnemonicParsing="false" onMouseClicked="#saveConfig" text="保  存" />
-      <Button fx:id="cancelBtn" layoutX="322.0" layoutY="336.0" mnemonicParsing="false" onMouseClicked="#returnHome" text="返  回" />
-      <Label layoutX="87.0" layoutY="92.0" text="Maven Home" />
-      <TextField fx:id="mavenHomeInput" layoutX="183.0" layoutY="88.0" prefHeight="23.0" prefWidth="297.0" />
-      <Button fx:id="chooseMavenHome" layoutX="488.0" layoutY="88.0" mnemonicParsing="false" onMouseClicked="#chooseMavenHome" text="选  择" />
-      <Label layoutX="64.0" layoutY="149.0" text="Git可执行文件路径" />
-      <TextField fx:id="gitExecutableInput" layoutX="183.0" layoutY="145.0" prefHeight="23.0" prefWidth="297.0" />
-      <Button layoutX="488.0" layoutY="145.0" mnemonicParsing="false" onMouseClicked="#chooseGitExecutable" text="选  择" />
+      <Button fx:id="saveBtn" layoutX="218.0" layoutY="353.0" mnemonicParsing="false" onMouseClicked="#saveConfig" text="保  存" />
+      <Button fx:id="cancelBtn" layoutX="322.0" layoutY="353.0" mnemonicParsing="false" onMouseClicked="#returnHome" text="返  回" />
+      <Label layoutX="52.0" layoutY="27.0" text="Maven Home" />
+      <TextField fx:id="mavenHomeInput" layoutX="148.0" layoutY="23.0" prefHeight="23.0" prefWidth="369.0" />
+      <Button fx:id="chooseMavenHome" layoutX="526.0" layoutY="23.0" mnemonicParsing="false" onMouseClicked="#chooseMavenHome" text="选  择" />
+      <Label layoutX="29.0" layoutY="60.0" text="Git可执行文件路径" />
+      <TextField fx:id="gitExecutableInput" layoutX="148.0" layoutY="56.0" prefHeight="23.0" prefWidth="369.0" />
+      <Button layoutX="526.0" layoutY="56.0" mnemonicParsing="false" onMouseClicked="#chooseGitExecutable" text="选  择" />
+      <Separator layoutX="219.0" layoutY="168.0" prefHeight="2.0" prefWidth="354.0" />
+      <ListView fx:id="excludedListView" editable="true" layoutX="26.0" layoutY="185.0" prefHeight="152.0" prefWidth="494.0" />
+      <Button layoutX="528.0" layoutY="185.0" mnemonicParsing="false" onMouseClicked="#addPattern" text="添 加" />
+      <Button layoutX="528.0" layoutY="224.0" mnemonicParsing="false" onMouseClicked="#editPattern" text="编 辑" />
+      <Button layoutX="528.0" layoutY="261.0" mnemonicParsing="false" onMouseClicked="#delPattern" text="删 除" />
+      <Label layoutX="26.0" layoutY="160.0" text="需要被排除的文件（ANT pattern)" />
+      <Label layoutX="67.0" layoutY="93.0" text="源文件路径" />
+      <Label layoutX="55.0" layoutY="128.0" text="资源文件路径" />
+      <TextField fx:id="sourceFolder" editable="false" layoutX="148.0" layoutY="89.0" />
+      <TextField fx:id="resourceFolder" editable="false" layoutX="148.0" layoutY="124.0" />
+      <TextField fx:id="webappFolder" editable="false" layoutX="413.0" layoutY="89.0" />
+      <Label layoutX="345.0" layoutY="93.0" text="Web目录" />
    </children>
 </AnchorPane>

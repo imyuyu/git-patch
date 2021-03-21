@@ -1,4 +1,4 @@
-package com.github.git.common;
+package com.github.git.util;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;

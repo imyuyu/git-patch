@@ -8,19 +8,31 @@ import cn.hutool.core.util.XmlUtil;
 import cn.hutool.core.util.ZipUtil;
 import com.github.git.common.Environment;
 import com.github.git.common.SystemProperties;
-import com.github.git.common.ThreadHelper;
-import com.github.git.common.ui.BaseController;
-import com.github.git.common.ui.MessageDialog;
-import com.github.git.common.ui.RequestMappingFactory;
+import com.github.git.patch.task.FetchPatchInfoTask;
+import com.github.git.patch.task.PatchBuildTask;
+import com.github.git.util.ThreadHelper;
+import com.github.git.util.UIHelper;
+import com.github.git.util.ui.BaseController;
+import com.github.git.util.MessageDialog;
+import com.github.git.util.ui.RequestMappingFactory;
 import com.github.git.config.ConfigController;
 import com.github.git.domain.Commit;
 import com.github.git.domain.Repository;
 import com.github.git.util.GitUtil;
 import com.github.git.util.WindowUtil;
 import javafx.application.Platform;
+import javafx.beans.binding.BooleanBinding;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Service;
+import javafx.concurrent.Task;
+import javafx.concurrent.Worker;
+import javafx.concurrent.WorkerStateEvent;
 import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Scene;
@@ -51,12 +63,6 @@ import java.util.stream.Collectors;
  */
 public class PatchController extends BaseController implements Initializable {
     private final Logger logger = Logger.getGlobal();
-
-    private final Set<String> exclude = new HashSet<>();
-
-    private final String webapp_folders = "src/main/webapp";
-    private final String source_folders = "src/main/java";
-    private final String resource_folders = "src/main/resources";
 
     @FXML
     public Pane pane;
@@ -106,14 +112,6 @@ public class PatchController extends BaseController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        exclude.add("pom.xml");
-        exclude.add(".gitignore");
-        exclude.add(".gitlab-ci.yml");
-        exclude.add("CHANGELOG.md");
-        exclude.add("CONTRIBUTING.md");
-        exclude.add("README.md");
-        exclude.add(".mvn");
-        exclude.add(".idea");
 
         String repo = SystemProperties.getInstance().getProperty("repo");
         String pathDir = SystemProperties.getInstance().getProperty("pathDir");
@@ -125,19 +123,48 @@ public class PatchController extends BaseController implements Initializable {
     }
 
     public void initRepository(){
-        String repo = repoPathInput.getText();
+        // 先置空
+        repository = null;
+
+        String repo = UIHelper.val(repoPathInput);
 
         if(StrUtil.isNotBlank(repo)){
-            repository = GitUtil.initRepository(repo);
 
-            if(repository != null){
-                List<Commit> commits = repository.getCommits();
-                if(CollectionUtil.isNotEmpty(commits)){
-                    commitEnd.setText(commits.get(0).getAbbreviatedCommitHash());
-                    branchInput.setText(repository.getDefaultBranch());
-                }
+            File file = new File(repo, ".git");
+            if(!file.exists()){
+                MessageDialog.error("不是正确的仓库地址！");
+                return;
             }
+
+            Task<Void> task = new Task<Void>() {
+
+                @Override
+                protected Void call() throws Exception {
+                    try {
+                        repository = GitUtil.initRepository(repo);
+                    } catch (Exception e) {
+                        logger.log(Level.SEVERE,"初始化仓库失败: "+e.getLocalizedMessage(),e);
+                        MessageDialog.error("初始化仓库失败："+e.getLocalizedMessage());
+                    }
+
+                    List<Commit> commits = repository.getCommits();
+                    if(CollectionUtil.isNotEmpty(commits)){
+                        commitEnd.setText(commits.get(0).getAbbreviatedCommitHash());
+                        branchInput.setText(repository.getDefaultBranch());
+                    }
+
+                    return null;
+                }
+            };
+
+            maskPane.visibleProperty().bind(task.runningProperty());
+
+            ThreadHelper.submit(task);
         }
+    }
+
+    private void showProgress() {
+        maskPane.setVisible(true);
     }
 
     public void exit(ActionEvent mouseEvent) {
@@ -156,7 +183,7 @@ public class PatchController extends BaseController implements Initializable {
             return;
         }
 
-        String workspace = repoPathInput.getText().trim();
+        String workspace = UIHelper.val(repoPathInput);
         if(StrUtil.isBlank(workspace)){
             MessageDialog.alert("请填写正确的Git本地仓库！");
             repoPathInput.requestFocus();
@@ -177,352 +204,68 @@ public class PatchController extends BaseController implements Initializable {
             return;
         }
 
-        String commitStartText = commitStart.getText().trim();
+        if (!isValid()) {
+            MessageDialog.alert("请选择正确的Git本地仓库！");
+            return;
+        }
+
+        String commitStartText = UIHelper.val(commitStart);
         if(StrUtil.isBlank(commitStartText)){
             commitStart.requestFocus();
             MessageDialog.alert("请填写正确的提交hash！");
             return;
         }
 
-        String commitEndText = commitEnd.getText().trim();
+        String commitEndText = UIHelper.val(commitEnd);
         if(StrUtil.isBlank(commitEndText)){
             commitStart.requestFocus();
             MessageDialog.alert("请填写正确的提交hash！");
             return;
         }
 
-        String patchDirText = patchDirInput.getText().trim();
+        String patchDirText = UIHelper.val(patchDirInput);
         if(StrUtil.isBlank(patchDirText)){
             patchDirInput.requestFocus();
             MessageDialog.alert("请填写正确的补丁包存放目录！");
             return;
         }
 
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.command(
-                gitExecutable
-                ,"diff"
-                ,"--name-only"
-                ,commitStartText
-                ,commitEndText
-                //,">"
-                //,Environment.getConfigHome()+File.separator+"git_logs"+File.separator+"logs.txt"
-        );
-        processBuilder.directory(new File(workspace));
-        Map<String, String> environment = processBuilder.environment();
-        Process process = processBuilder.start();
-
-        logger.info("开始获取变更详情...");
-
-        List<String> names = new ArrayList<>();
-
-        ThreadHelper.submit(new Runnable() {
+        FetchPatchInfoTask fetchPatchInfoTask = new FetchPatchInfoTask(gitExecutable,commitStartText,commitEndText,workspaceFile);
+        fetchPatchInfoTask.setOnRunning(new EventHandler<WorkerStateEvent>() {
             @Override
-            public void run() {
-                InputStream inputStream = process.getInputStream();
-                IoUtil.readUtf8Lines(inputStream,names);
+            public void handle(WorkerStateEvent event) {
+                progressInfo.clear();
+                progressInfo.appendText("开始获取变更详情...\n");
             }
         });
 
-        mainPane.setVisible(false);
-        processingPane.setVisible(true);
-
-        progressInfo.clear();
-        progressBar.setProgress(0);
-        progressInfo.appendText("开始获取变更详情...\n");
-
-        // 是否全量打包
-        boolean isFullPackage = fullPackage.isSelected();
-
-        ThreadHelper.submit(new Runnable() {
+        fetchPatchInfoTask.exceptionProperty().addListener(new ChangeListener<Throwable>() {
             @Override
-            public void run() {
-                int i = 0;
-                try {
-                    i = process.waitFor();
-                } catch (InterruptedException e) {
-                    Platform.runLater(new Runnable() {
-                        @Override
-                        public void run() {
-                            progressBar.setProgress(0);
-                            MessageDialog.alert("获取git信息失败");
-                            finishPackage.setDisable(false);
-                            returnMain.setDisable(false);
-                        }
-                    });
-                    logger.log(Level.SEVERE,"获取git信息失败！",e);
+            public void changed(ObservableValue<? extends Throwable> observable, Throwable oldValue, Throwable e) {
+                MessageDialog.alert(e.getLocalizedMessage());
+            }
+        });
+
+        fetchPatchInfoTask.valueProperty().addListener(new ChangeListener<List<String>>() {
+            @Override
+            public void changed(ObservableValue<? extends List<String>> observable, List<String> oldValue, List<String> names) {
+                if (names.isEmpty()) {
+                    MessageDialog.alert("无变更文件，无需构建补丁包！");
                     return;
-                } finally {
-                    process.destroyForcibly();
                 }
-
-                if(i == 0){
-
-                    if(names.isEmpty()){
-                        logger.info("获取变更详情完成，无变更文件");
-                        Platform.runLater(new Runnable() {
-                            @Override
-                            public void run() {
-                                progressInfo.appendText("无变更文件，无需构建补丁包！\n");
-                                progressBar.setProgress(1);
-                                finishPackage.setDisable(false);
-                                returnMain.setDisable(false);
-                                MessageDialog.alert("无变更文件，无需构建补丁包！");
-                            }
-                        });
-                        return;
-                    }
-
-                    List<String> files = names.stream().filter(PatchController.this::validPath).collect(Collectors.toList());
-
-                    logger.info("一共变更文件"+files.size()+"个,开始进行补丁包制作。");
-                    progressInfo.appendText("一共变更文件"+files.size()+"个,开始进行补丁包制作。\n");
-
-                    String commitStartShort = commitStartText.substring(0,8);
-                    String commitEndShort = commitEndText.substring(0,8);
-
-                    String patchFileName = String.join("_",commitStartShort,commitEndShort,"patch");
-
-                    File patchDir = new File(Environment.getConfigFolder(),String.join(File.separator,"temp",patchFileName));
-
-                    if(!patchDir.exists()){
-                        patchDir.mkdirs();
-                    }
-                    // 清空文件夹
-                    FileUtil.del(patchDir);
-
-                    File classesDir = new File(patchDir,"WEB-INF/classes");
-                    if(!classesDir.exists()){
-                        classesDir.mkdirs();
-                    }
-
-                    long start = System.currentTimeMillis();
-                    logger.info("开始构建补丁包..");
-
-                    ThreadHelper.submit(new Runnable() {
-                        @Override
-                        public void run() {
-                            Platform.runLater(new Runnable() {
-                                @Override
-                                public void run() {
-                                    buildInfo.setText("开始构建补丁包...");
-                                }
-                            });
-
-                            AtomicInteger atomicInteger = new AtomicInteger(0);
-
-                            files.parallelStream().forEach(new Consumer<String>() {
-                                @Override
-                                public void accept(String filePath) {
-                                    Platform.runLater(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            buildInfo.setText("开始构建补丁包..."+filePath);
-                                        }
-                                    });
-
-                                    int idx4FileName = filePath.lastIndexOf("/");
-                                    // 文件名
-                                    String fileName = filePath.substring(idx4FileName + 1);
-
-                                    int idx4ModuleName = filePath.indexOf("/");
-                                    // 模块
-                                    String moduleName = filePath.substring(0,idx4ModuleName);
-
-                                    // 当前模块打包方式
-                                    String packaging = "jar";
-                                    // 解析一下pom
-                                    File pomFile = new File(workspace+"/"+moduleName+"/pom.xml");
-                                    if(pomFile.exists()){
-                                        NodeList packagingNodes = XmlUtil.readXML(pomFile).getElementsByTagName("packaging");
-                                        if(packagingNodes.getLength() > 0){
-                                            packaging = packagingNodes.item(packagingNodes.getLength() - 1).getTextContent();
-                                        }
-                                    }
-
-                                    int extIndex = fileName.lastIndexOf(".");
-                                    String fileShortName = fileName.substring(0, extIndex);
-                                    String fileExtName = fileName.substring(extIndex + 1);
-
-                                    String sourcePath = moduleName + "/" + source_folders;
-                                    String resourcePath = moduleName + "/" + resource_folders;
-
-                                    File sourceFile;
-                                    File targetFile;
-
-                                    if(isFullPackage && Objects.equals(packaging, "jar")){
-
-                                        String jarPath = String.join("/", workspace, moduleName, "target");
-
-                                        File jarFolder = new File(jarPath);
-                                        // todo 需要改一下模式，比如从父pom中获取，不过太麻烦了。
-                                        File[] jars = jarFolder.listFiles(new FileFilter() {
-                                            @Override
-                                            public boolean accept(File pathname) {
-                                                String fileName = pathname.getName();
-                                                return fileName.endsWith(".jar")
-                                                        && !fileName.endsWith("SNAPSHOT.jar")
-                                                        && !fileName.endsWith("sources.jar");
-                                            }
-                                        });
-
-                                        if(jars == null || jars.length == 0){
-                                            return;
-                                        }
-
-                                        sourceFile = jars[0];
-
-                                        targetFile = new File(patchDir+"/WEB-INF/lib/"+sourceFile.getName());
-
-                                        if(targetFile.exists()){
-                                            return;
-                                        }
-                                    }else {
-                                        // 需要编译的代码放到classes,不需要编译的直接复制
-                                        if (filePath.startsWith(sourcePath)) {
-                                            // 需要编译
-                                            if (filePath.endsWith(".java")) {
-                                                String targetTemp = filePath.replace(sourcePath, "").replace(".java", ".class");
-
-                                                // 需要编译的文件，获取target中的文件
-                                                String compilePath = String.join("/", workspace, moduleName, "target", "classes");
-
-                                                String compileFile = filePath.replace(sourcePath, compilePath).replace(".java", ".class");
-                                                // class路径
-                                                sourceFile = new File(compileFile);
-                                                // 补丁包内class路径
-                                                targetFile = new File(classesDir, targetTemp);
-                                            } else {
-                                                // 直接复制
-                                                String targetTemp = filePath.replace(sourcePath, "");
-                                                sourceFile = new File(workspaceFile, filePath);
-                                                targetFile = new File(classesDir, targetTemp);
-                                            }
-                                        } else if (filePath.startsWith(resourcePath)) {
-
-                                            // resource 目录下的，直接放到class目录
-                                            String targetTemp = filePath.replace(resourcePath, "");
-                                            sourceFile = new File(workspaceFile, filePath);
-                                            targetFile = new File(classesDir, targetTemp);
-
-                                        } else {
-                                            // 不需要
-                                            String targetTemp = filePath.replace(moduleName + "/" + webapp_folders, "");
-                                            // 其他文件对应放,直接复制
-                                            sourceFile = new File(workspaceFile, filePath);
-                                            targetFile = new File(patchDir, targetTemp);
-                                        }
-                                    }
-
-                                    try {
-                                        if(sourceFile.exists()){
-                                            File parentFile = targetFile.getParentFile();
-                                            if(!parentFile.exists()){
-                                                parentFile.mkdirs();
-                                            }
-
-                                            if(targetFile.exists()){
-                                                targetFile.delete();
-                                            }
-                                            targetFile.createNewFile();
-
-                                            IoUtil.copy(new FileInputStream(sourceFile),new FileOutputStream(targetFile));
-                                            logger.info("复制文件："+sourceFile.getPath() + " > " +targetFile.getPath());
-                                        }else{
-                                            logger.info("源文件不存在,是被删除了:"+sourceFile.getPath());
-                                        }
-
-                                        double finalCount = atomicInteger.incrementAndGet();
-                                        Platform.runLater(new Runnable() {
-                                            @Override
-                                            public void run() {
-                                                progressInfo.appendText("复制文件："+sourceFile.getPath() + " > " +targetFile.getPath()+". 完成\n");
-                                                double percent = finalCount / files.size();
-                                                if(percent <= 0.95){
-                                                    progressBar.setProgress(percent);
-                                                }
-                                            }
-                                        });
-                                    } catch (IOException e) {
-                                        logger.log(Level.SEVERE,"失败！",e);
-                                    }
-                                }
-                            });
-
-                            Platform.runLater(new Runnable() {
-                                @Override
-                                public void run() {
-                                    buildInfo.setText("开始进行压缩...");
-                                    progressInfo.appendText("...\n");
-                                }
-                            });
-                            ThreadHelper.submit(new Runnable() {
-                                @Override
-                                public void run() {
-                                    // 创建zip文件
-                                    File zipFile = new File(patchDirText,patchFileName+".zip");
-                                    File parentFile = zipFile.getParentFile();
-                                    if(!parentFile.exists()){
-                                        parentFile.mkdirs();
-                                    }
-                                    ZipUtil.zip(zipFile,false,patchDir);
-
-                                    String logInfo = "构建补丁包："+zipFile.getPath()+" 完成,共耗时："+(System.currentTimeMillis()-start)+" MS";
-                                    logger.info(logInfo);
-                                    Platform.runLater(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            buildInfo.setText("开始构建补丁包...完成");
-                                            progressInfo.appendText(logInfo);
-
-                                            finishPackage.setDisable(false);
-                                            returnMain.setDisable(false);
-                                            progressBar.setProgress(1);
-
-                                            // 清空文件夹
-                                            FileUtil.del(patchDir);
-
-                                            MessageDialog.alert("生成成功！");
-
-                                            if(finishThenOpenFolder.isSelected()){
-                                                WindowUtil.openFolder(parentFile.getPath());
-                                            }
-
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
-
-                }else{
-                    InputStream inputStream = process.getErrorStream();
-                    String s = IoUtil.readUtf8(inputStream);
-                    System.out.println(s);
-                    logger.severe("生成失败,错误原因："+s);
-                    Platform.runLater(new Runnable() {
-                        @Override
-                        public void run() {
-                            finishPackage.setDisable(false);
-                            returnMain.setDisable(false);
-                            progressBar.setProgress(1);
-                            progressInfo.appendText("生成失败，失败原因：\n"+s);
-                            if(s.contains("unknown revision or path not in the working tree.")){
-                                MessageDialog.alert("生成失败,提交hash不存在！");
-                            }else {
-                                MessageDialog.alert("生成失败");
-                            }
-                        }
-                    });
-                }
+                startBuildPatch(names,commitStartText,commitEndText,workspace,patchDirText);
             }
         });
+
+        maskPane.visibleProperty().bind(fetchPatchInfoTask.runningProperty());
+
+        ThreadHelper.submit(fetchPatchInfoTask);
 
         // 打开文件夹
         if (saveMe.isSelected()) {
             // 保存配置
-            SystemProperties.getInstance().putProperty("repo",repoPathInput.getText());
-            SystemProperties.getInstance().putProperty("pathDir",patchDirInput.getText());
+            SystemProperties.getInstance().putProperty("repo", UIHelper.val(repoPathInput));
+            SystemProperties.getInstance().putProperty("pathDir", UIHelper.val(patchDirInput));
         }else{
             // 删除配置
             SystemProperties.getInstance().delProperty("repo");
@@ -531,8 +274,74 @@ public class PatchController extends BaseController implements Initializable {
         SystemProperties.getInstance().save();
     }
 
+    /**
+     * 开始构建补丁包
+     * @param names
+     * @param commitStartText
+     * @param commitEndText
+     * @param workspace
+     * @param saveFolder
+     */
+    private void startBuildPatch(List<String> names, String commitStartText, String commitEndText,String workspace,String saveFolder){
+
+        PatchBuildTask patchBuildTask = new PatchBuildTask(names,commitStartText,commitEndText,workspace,saveFolder);
+        // 是否全量打包
+        patchBuildTask.setFullPackage(fullPackage.isSelected());
+
+        SimpleBooleanProperty trueProperty = new SimpleBooleanProperty(true);
+
+        patchBuildTask.setOnRunning(new EventHandler<WorkerStateEvent>() {
+            @Override
+            public void handle(WorkerStateEvent event) {
+                mainPane.setVisible(false);
+                processingPane.setVisible(true);
+
+                progressInfo.clear();
+            }
+        });
+
+        patchBuildTask.messageProperty().addListener(new ChangeListener<String>() {
+            @Override
+            public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+                progressInfo.appendText(newValue);
+                progressInfo.appendText("\n");
+            }
+        });
+
+        buildInfo.textProperty().bind(patchBuildTask.titleProperty());
+
+
+        patchBuildTask.valueProperty().addListener(new ChangeListener<File>() {
+            @Override
+            public void changed(ObservableValue<? extends File> observable, File oldValue, File newValue) {
+                MessageDialog.alert("生成成功！");
+
+                if (finishThenOpenFolder.isSelected() && newValue != null) {
+                    WindowUtil.openFolder(newValue.getParentFile().getPath());
+                }
+            }
+        });
+
+        patchBuildTask.exceptionProperty().addListener(new ChangeListener<Throwable>() {
+            @Override
+            public void changed(ObservableValue<? extends Throwable> observable, Throwable oldValue, Throwable newValue) {
+                logger.log(Level.SEVERE,"生成失败！",newValue);
+                MessageDialog.alert("生成失败！");
+            }
+        });
+
+        progressBar.progressProperty().bind(patchBuildTask.progressProperty());
+
+        BooleanBinding isOk = patchBuildTask.runningProperty().isEqualTo(trueProperty);
+
+        finishPackage.disableProperty().bind(isOk);
+        returnMain.disableProperty().bind(isOk);
+
+        ThreadHelper.submit(patchBuildTask);
+    }
+
     public void chooseWorkspace(MouseEvent mouseEvent) {
-        String text = repoPathInput.getText();
+        String text = UIHelper.val(repoPathInput);
         if(StrUtil.isNotBlank(text)){
             directoryChooser.setInitialDirectory(new File(text));
         }
@@ -546,7 +355,7 @@ public class PatchController extends BaseController implements Initializable {
     }
 
     public void choosePatchDir(MouseEvent mouseEvent) {
-        String text = patchDirInput.getText();
+        String text = UIHelper.val(patchDirInput);
         if(StrUtil.isNotBlank(text)){
             directoryChooser.setInitialDirectory(new File(text));
         }
@@ -568,19 +377,11 @@ public class PatchController extends BaseController implements Initializable {
     }
 
     /**
-     *
-     * @param filePath
-     * @return false表示验证失败
+     * 验证当前配置
+     * @return
      */
-    public boolean validPath(String filePath){
-        for (String s : exclude) {
-            boolean contains = filePath.contains(s) || s.contains(filePath);
-            if(contains){
-                logger.info("文件被过滤:"+filePath);
-                return false;
-            }
-        }
-        return true;
+    public boolean isValid(){
+        return repository != null;
     }
 
     public void chooseBranch(MouseEvent mouseEvent) {
@@ -591,7 +392,7 @@ public class PatchController extends BaseController implements Initializable {
             return;
         }
 
-        String workspace = repoPathInput.getText().trim();
+        String workspace = UIHelper.val(repoPathInput);
         if(StrUtil.isBlank(workspace)){
             MessageDialog.alert("请填写正确的Git本地仓库！");
             repoPathInput.requestFocus();
@@ -694,14 +495,20 @@ public class PatchController extends BaseController implements Initializable {
     }
 
     public void chooseStartCommit(MouseEvent mouseEvent) {
-        chooseCommit(commitStart.getText().trim(),commit -> commitStart.setText(commit.getAbbreviatedCommitHash()));
+        chooseCommit(UIHelper.val(commitStart), commit -> commitStart.setText(commit.getAbbreviatedCommitHash()));
     }
 
     public void chooseEndCommit(MouseEvent mouseEvent) {
-        chooseCommit(commitEnd.getText().trim(),commit -> commitEnd.setText(commit.getAbbreviatedCommitHash()));
+
+        chooseCommit(UIHelper.val(commitEnd), commit -> commitEnd.setText(commit.getAbbreviatedCommitHash()));
     }
 
     public void chooseCommit(String initData,Consumer<Commit> consumer){
+        if(!isValid()){
+            MessageDialog.alert("请先选择正确的仓库！");
+            return;
+        }
+
         Dialog<Commit> dialog = new Dialog<>();
         dialog.setTitle("选择提交历史");
         dialog.setHeaderText("");

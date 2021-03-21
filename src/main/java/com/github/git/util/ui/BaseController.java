@@ -1,4 +1,4 @@
-package com.github.git.common.ui;
+package com.github.git.util.ui;
 
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;

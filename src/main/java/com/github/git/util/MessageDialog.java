@@ -1,4 +1,4 @@
-package com.github.git.common.ui;
+package com.github.git.util;
 
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
@@ -63,6 +63,19 @@ public class MessageDialog {
         if (result.isPresent() && result.get() == ButtonType.OK) {
             //System.exit(0);
         }
+    }
+
+    public static String prompt(String tips, String selectedItem){
+        TextInputDialog dialog = new TextInputDialog(selectedItem);
+        dialog.setTitle("请输入");
+        dialog.setHeaderText(null);
+        dialog.setContentText(tips);
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()){
+            return result.get();
+        }
+        return null;
     }
 
     public static void confirm(String msg, Consumer<ButtonType> ok){
